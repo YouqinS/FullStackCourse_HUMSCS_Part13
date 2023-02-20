@@ -2,19 +2,25 @@
 
 const routerBlogs = require('express').Router()
 
-const {Blog} = require('../models')
+const {Blog, User} = require('../models')
 
-const { blogFinder} = require('../util/middleware');
+const { blogFinder, tokenExtractor} = require('../util/middleware');
 
-routerBlogs.post('/', async (req, res) => {
-    const blog = await Blog.create(req.body)
+routerBlogs.post('/', tokenExtractor, async (req, res) => {
+    const user = await User.findByPk(req.decodedToken.id)
+    const blog = await Blog.create({...req.body, userId: user.id})
+
     console.log("created blog: ", blog.toJSON())
     return res.json(blog)
-
 })
 
 routerBlogs.get('/', async (req, res) => {
-    const blogs = await Blog.findAll()
+    const blogs = await Blog.findAll({
+        attributes: { exclude: ['userId'] },
+        include: {
+            model: User
+        }
+    })
     console.log(JSON.stringify(blogs, null, 2))
     res.json(blogs)
 })
@@ -29,7 +35,7 @@ routerBlogs.get('/:id', blogFinder, async (req, res) => {
     }
 })
 
-routerBlogs.delete('/:id', blogFinder, async (req, res) => {
+routerBlogs.delete('/:id', tokenExtractor, blogFinder, async (req, res) => {
     if (req.blog) {
         console.log("deleting blog: ", req.blog.toJSON())
         await req.blog.destroy()
